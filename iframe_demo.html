@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>示例-模多客</title>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link rel="stylesheet" href="layui/css/layui.css" media="all">
+</head>
+<body>
+<!--<iframe height="100%" width="100%" src="" id="iframe"></iframe>-->
+<script src="layui/layui.js" charset="utf-8"></script>
+<script src="https://cdn.staticfile.org/jquery/3.2.1/jquery.js"></script>
+<script src="crypto-js-develop/src/core.js"></script>
+<script src="crypto-js-develop/src/sha256.js"></script>
+<script src="crypto-js-develop/src/hmac.js"></script>
+<script src="crypto-js-develop/src/enc-base64.js"></script>
+<script>
+
+    function GetQueryString(name) {
+        var reg = new RegExp("(^|&)"+ name +"=([^&]*)(&|$)");
+        var r = window.location.search.substr(1).match(reg);
+        if(r!=null)return  unescape(r[2]); return null;
+    }
+    var id = GetQueryString('id');
+    var url='https://e.modocker.com/model/'+id+'/api-edit';
+
+    var iframeDom = document.createElement("iframe");
+    iframeDom.src = url;
+    iframeDom.id = 'iframe';
+    iframeDom.width = '100%';
+    iframeDom.height = '800px';
+//    iframeDom.minHeight = '600px';
+
+    if (iframeDom.attachEvent){
+        iframeDom.attachEvent("onload", function(){
+//            alert("Local iframe is now loaded.");
+        });
+    } else {
+        iframeDom.onload = function(){
+//            alert("Local iframe is now loaded.");
+        };
+    }
+
+    document.body.appendChild(iframeDom);
+
+    // 获取编辑器的 iframe 元素，亦可使用 document.getElementById() 等其他方式
+    var $iframe = $('#iframe');
+
+    window.onload = function(){
+        setInterval(postMessageToEditor(), 45000) // 因认证信息超过 90 秒将失效，因此每 45 秒向编辑器重新发送认证信息。
+    }
+
+    function postMessageToEditor(){
+        var user = 'njsttx';
+        var secret = '47Ab3du42vjTvp2SUTQjG2gDZElMmDYG';
+        var timeStamp = (Math.round(new Date().getTime() / 1000)).toString()
+
+        var hash = CryptoJS.HmacSHA256(user, secret + timeStamp)
+        var signature = CryptoJS.enc.Base64.stringify(hash)
+
+        // 构造认证信息对象。注意：键值拼写必须如下！
+        var msg = {
+            signature : signature,
+            user : user,
+            timeStamp : timeStamp
+        }
+
+        // 使用 postMessage 向编辑器所在的 iframe 发送认证信息
+        $iframe[0].contentWindow.postMessage(msg, url)
+    }
+</script>
+</body>
+</html>

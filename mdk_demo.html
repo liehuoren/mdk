@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>示例-模多客</title>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link rel="stylesheet" href="layui/css/layui.css" media="all">
+</head>
+
+<div id="modelDetail" hidden>
+    <div class="layui-form-item">
+        <label class="layui-form-label">模型名称</label>
+        <div class="layui-input-block">
+            <input type="text" lay-verify="title" autocomplete="off" class="layui-input" id="title">
+        </div>
+    </div>
+
+    <div class="layui-form-item">
+        <label class="layui-form-label">模型描述</label>
+        <div class="layui-input-block">
+            <input type="text" lay-verify="title" autocomplete="off" class="layui-input" id="desc">
+        </div>
+    </div>
+
+    <div class="layui-form-item">
+        <label class="layui-form-label">模型缩略图</label>
+        <div class="layui-upload-list">
+            <img class="layui-upload-img" id="imgurl" style="width:150px;height: 150px;">
+            <p id="demoText"></p>
+        </div>
+    </div>
+
+    <div class="layui-form-item">
+        <label class="layui-form-label">面数</label>
+        <div class="layui-input-block">
+            <input type="text" lay-verify="title" autocomplete="off" class="layui-input" id="faceNum">
+        </div>
+    </div>
+
+    <div class="layui-form-item">
+        <label class="layui-form-label">文件格式</label>
+        <div class="layui-input-block">
+            <input type="text" lay-verify="title" autocomplete="off" class="layui-input" id="voice">
+        </div>
+    </div>
+
+    <div class="layui-form-item">
+        <label class="layui-form-label">是否允许下载</label>
+        <div class="layui-input-block">
+            <input type="text" lay-verify="title" autocomplete="off" class="layui-input" id="is_download">
+        </div>
+    </div>
+
+    <div class="layui-form-item">
+        <label class="layui-form-label">创建时间</label>
+        <div class="layui-input-block">
+            <input type="text" lay-verify="title" autocomplete="off" class="layui-input" id="create_at">
+        </div>
+    </div>
+</div>
+<div id="uploadIframe" hidden>
+
+    <h4>您所选择的文件列表：</h4>
+    <div id="ossfile"></div>
+
+    <br/>
+
+    <div id="container">
+        <a id="selectfiles" href="javascript:void(0);" class='btn'>选择文件</a>
+        <a id="postfiles" href="javascript:void(0);" class='btn'>开始上传</a>
+    </div>
+
+    <pre id="console"></pre>
+
+    <p>&nbsp;</p>
+</div>
+<body>
+<div class="site-demo-button" style="margin-bottom: 0;" id="demo">
+
+    <!--https://e.modocker.com/doc/open-api/intro-->
+
+    <!--<button data-method="createLibrary" class="layui-btn">创建模型库</button>-->
+    <!--<button data-method="setTop" class="layui-btn">修改模型库</button>-->
+    <button data-method="getLibraryList" class="layui-btn">获取模型库列表</button>
+    <button data-method="createModel" class="layui-btn">创建模型</button>
+    <button data-method="getModelList" class="layui-btn">获取模型列表</button>
+    <!--<button data-method="subModelTest" class="layui-btn">提交模型处理</button>-->
+    <button data-method="getModel" class="layui-btn">获取模型详情</button>
+    <button data-method="editModel" class="layui-btn">编辑模型信息</button>
+    <button data-method="deleteModel" class="layui-btn">删除模型</button>
+    <button data-method="addStorage" class="layui-btn">将模型移入仓位</button>
+    <button data-method="removeStorage" class="layui-btn">将模型从仓位移除</button>
+    <button data-method="getStorage" class="layui-btn">获取仓位信息</button>
+    <button data-method="iframeModel" class="layui-btn">模型编辑器</button>
+    <button data-method="iframeModelEdit" class="layui-btn">模型展示</button>
+</div>
+
+<!--<script src="layui/lay/modules/jquery.js" charset="utf-8"></script>-->
+<script src="layui/layui.js" charset="utf-8"></script>
+<script src="https://cdn.staticfile.org/jquery/3.2.1/jquery.js"></script>
+<script src="crypto-js-develop/src/core.js"></script>
+<script src="crypto-js-develop/src/sha256.js"></script>
+<script src="crypto-js-develop/src/hmac.js"></script>
+<script src="crypto-js-develop/src/enc-base64.js"></script>
+
+<!--文件上传-->
+<script type="text/javascript" src="oss-h5-upload-js-direct/lib/plupload-2.1.2/js/plupload.full.min.js"></script>
+<!--<script src="oss-h5-upload-js-direct/upload.js"></script>-->
+<script>
+    var task_uid;
+    var taskId;
+    var user = 'njsttx';
+    var secret = '47Ab3du42vjTvp2SUTQjG2gDZElMmDYG';
+    var timeStamp = (Math.round(new Date().getTime() / 1000)).toString()
+
+    var hash = CryptoJS.HmacSHA256(user, secret + timeStamp)
+    var signature = CryptoJS.enc.Base64.stringify(hash)
+
+    $.ajaxSetup({ //设置全局性的Ajax选项
+        headers: {
+            user: user,    //用户名
+            signature: signature,   //加密后的签名
+            timestamp: timeStamp,   //时间戳
+        },
+    });
+    var active
+
+    layui.use('layer', function () { //独立版的layer无需执行这一句
+        var $ = layui.jquery, layer = layui.layer; //独立版的layer无需执行这一句
+
+        $('#demo .layui-btn').on('click', function () {
+            var $this = $(this), method = $this.data('method');
+            active[method] ? active[method].call(this, $this) : '';
+        });
+
+        //触发事件
+        active = {
+            //获取模型库列表
+            getLibraryList: function () {
+                $.ajax({
+                    type: 'GET',
+                    url: 'https://api.mdkrapi.com/open/e/v1/model/library',
+                    dataType: 'json',
+                    success: function (data) {
+                        console.log(data);
+                        if (data.errcode == 0) {
+                            data = data.data;
+                            var name = '';
+                            for (var i in data.list) {
+                                name += '[' + data.list[i].name + ']';
+                            }
+                            layer.alert('共计' + data.count + '个模型库，' + name,function () {
+                                location.reload();
+                            });
+                        } else {
+                            layer.msg(data.errmsg.name ? data.errmsg.name : data.errmsg);
+                        }
+                    },
+                });
+            }
+            //创建模型库
+            , createLibrary: function () {
+                layer.prompt({
+                    title: '请输入模型库名称'
+                }, function (val, index) {
+                    $.ajax({
+                        type: 'POST',
+                        url: 'https://api.mdkrapi.com/open/e/v1/model/library',
+                        data: {name: val},
+                        dataType: 'json',
+                        success: function (data) {
+                            console.log(data);
+                            if (data.errcode == 0) {
+                                data = data.data;
+                                layer.alert('模型库[' + data.name + ']创建成功',function () {
+                                    location.reload();
+                                });
+                            } else {
+                                layer.msg(data.errmsg.name ? data.errmsg.name : data.errmsg);
+                            }
+                        },
+                    });
+                });
+            }
+
+            //创建模型
+            , createModel: function () {
+                layer.prompt({
+                    title: '请输入模型标题'
+                }, function (val, index) {
+                    $.ajax({
+                        type: 'POST',
+                        url: 'https://api.mdkrapi.com/open/e/v1/model',
+                        data: {title: val, library_id: 47},
+                        dataType: 'json',
+                        async: false,
+                        success: function (data) {
+                            console.log(data);
+
+                            /**
+                             {
+                              "errcode": 0,
+                              "errmsg": "success",
+                              "data": {
+                                "create_at": 1521089160,
+                                "id": 11219,
+                                "task": "spbUTsaesia89Aoxl0N4IdPGztHFkg54",
+                                "upload": {
+                                  "accessid": "8UFabyhcENbT0Vuo",
+                                  "callback": "eyJjYWxsYmFja1VybCI6InJlc291cmNlLm1vZG9ja2VyLmNvbVwvYXBpXC92MVwvY29ublwvbW9kZWxcL2NhbGxiYWNrIiwiY2FsbGJhY2tCb2R5IjoiZmlsZW5hbWU9JHtvYmplY3R9JnNpemU9JHtzaXplfSZtaW1lVHlwZT0ke21pbWVUeXBlfSZoZWlnaHQ9JHtpbWFnZUluZm8uaGVpZ2h0fSZ3aWR0aD0ke2ltYWdlSW5mby53aWR0aH0iLCJjYWxsYmFja0JvZHlUeXBlIjoiYXBwbGljYXRpb25cL3gtd3d3LWZvcm0tdXJsZW5jb2RlZCJ9",
+                                  "dir": "2018/03/15/spbUTsaesia89Aoxl0N4IdPGztHFkg54/",
+                                  "expire": 1521089190,
+                                  "host": "https://wwh-original-model-oss.oss-cn-hangzhou.aliyuncs.com",
+                                  "policy": "eyJleHBpcmF0aW9uIjoiMjAxOC0wMy0xNVQxMjo0NjozMFoiLCJjb25kaXRpb25zIjpbWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMCwxMDQ4NTc2MDAwMF0sWyJzdGFydHMtd2l0aCIsIiRrZXkiLCIyMDE4XC8wM1wvMTVcL3NwYlVUc2Flc2lhODlBb3hsME40SWRQR3p0SEZrZzU0XC8iXV19",
+                                  "signature": "LsSOUCfcFncULOK1i/7ruNiDbUg="
+                                }
+                              }
+                            }
+                             */
+                            if (data.errcode == 0) {
+                                data = data.data;
+
+                                task_uid = data.id;
+                                taskId = data.task;
+
+                                Upload.accessid = data.upload.accessid;
+                                Upload.callback = data.upload.callback;
+                                Upload.dir = data.upload.dir;
+                                Upload.expire = data.upload.expire;
+                                Upload.host = data.upload.host;
+                                Upload.policy = data.upload.policy;
+                                Upload.signature = data.upload.signature;
+
+                                layer.open({
+                                    type: 1 //
+                                    , title: '上传作品'
+                                    , area: ['390px', '260px']
+                                    , shade: 0
+                                    , maxmin: true
+                                    , content: $('#uploadIframe')
+                                });
+                            } else {
+                                layer.msg(data.errmsg.title ? data.errmsg.title : data.errmsg);
+                            }
+                        },
+                    });
+                });
+            }
+            
+            ,subModelTest:function () {
+                layer.prompt({
+                        title: '请输入模型uid'
+                    }, function (val, index) {
+                    layer.prompt({
+                        title: '请输入模型id'
+                    }, function (val2, index) {
+                        active.subModel(val,val2);
+                    })
+                })
+            }
+            //提交模型处理
+            , subModel: function (id,task) {
+
+                $.ajax({
+                    type: 'POST',
+                    url: 'https://api.mdkrapi.com/open/e/v1/model/task/' + task,
+                    data: {submit: true},
+                    dataType: 'json',
+                    async:false,
+                    success: function (data) {
+                        console.log(data);
+                        if (data.errcode == 0) {
+
+                            layer.alert('提交成功，模型id：<br/>' + task + '<br/>请复制，方便后面测试使用',function () {
+                                location.reload();
+                            });
+                            var ids=[];
+                            ids.push(id);
+
+                            $.ajax({
+                                type: 'POST',
+                                url: 'https://api.mdkrapi.com/open/e/v1/model/online',
+                                data: {id: ids},
+                                dataType: 'json',
+                                success: function (data) {
+                                    console.log(data);
+                                    if (data.errcode == 0) {
+                                        layer.alert('提交成功，模型id：<br/>' + task + '<br/>请复制，方便后面测试使用',function () {
+                                            location.reload();
+                                        });
+                                    }else {
+                                        layer.msg(data.errmsg);
+                                    }
+                                }
+                            })
+                        } else {
+                            layer.msg(data.errmsg);
+                        }
+                    },
+                });
+            }
+            //获取模型详情
+            , getModel: function () {
+
+                layer.prompt({
+                    title: '请输入模型id'
+                }, function (val, index) {
+                    $.ajax({
+                        type: 'GET',
+                        url: 'https://api.mdkrapi.com/open/e/v1/model/' + val,
+                        dataType: 'json',
+                        success: function (data) {
+                            console.log(data);
+                            if (data.errcode == 0) {
+                                data = data.data;
+
+
+                                $('#task').val(data.task);
+                                $('#title').val(data.title);
+                                $('#desc').val(data.desc);
+                                $('#imgurl').attr('src', 'http://oss.image.mdkrcdn.com/'+data.imgurl);
+                                $('#faceNum').val(data.faceNum);
+                                $('#voice').val(data.voice);
+
+                                //是否允许下载：0：不可，1：可
+                                if (data.is_download == 0) {
+                                    $('#is_download').val('不可以');
+                                } else {
+                                    $('#is_download').val('可以');
+                                }
+
+                                $('#create_at').val(data.create_at);
+
+                                layer.open({
+                                    title: '模型详情'
+                                    , content: $('#modelDetail')
+                                    , area: ['500px', '600px']
+                                });
+                            } else {
+                                layer.msg(data.errmsg);
+                            }
+                        },
+                    });
+                });
+            }
+            , editModel: function () {
+                layer.prompt({
+                    title: '请输入模型id'
+                }, function (val, index) {
+
+                    layer.prompt({
+                        title: '请输入是否允许下载 1可以 0不可以'
+                    }, function (val2, index2) {
+                        $.ajax({
+                            type: 'PUT',
+                            url: 'https://api.mdkrapi.com/open/e/v1/model/' + val,
+                            dataType: 'json',
+                            data: {is_download: (val2 == 1?'1':'0')},
+                            success: function (data) {
+                                console.log(data);
+                                if (data.errcode == 0) {
+                                    data = data.data;
+                                    layer.alert('修改成功',function () {
+                                        location.reload();
+                                    })
+                                } else {
+                                    layer.msg(data.errmsg);
+                                }
+                            },
+                        });
+                    })
+                });
+            }
+            , deleteModel: function () {
+                layer.prompt({
+                    title: '请输入删除的模型id'
+                }, function (val, index) {
+                    $.ajax({
+                        type: 'DELETE',
+                        url: 'https://api.mdkrapi.com/open/e/v1/model/' + val,
+                        dataType: 'json',
+                        success: function (data) {
+                            console.log(data);
+                            if (data.errcode == 0) {
+                                data = data.data;
+                                layer.alert('删除成功',function () {
+                                    location.reload();
+                                });
+                            } else {
+                                layer.msg(data.errmsg);
+                            }
+                        },
+                    });
+                });
+            }
+            //获取模型列表
+            , getModelList: function () {
+                $.ajax({
+                    type: 'GET',
+                    url: 'https://api.mdkrapi.com/open/e/v1/model/',
+                    data: {library_id: 47,per_page:100000},
+                    dataType: 'json',
+                    success: function (data) {
+                        console.log(data);
+                        if (data.errcode == 0) {
+                            data = data.data;
+                            var name = '';
+                            for (var i in data.list) {
+                                name += '<br>[uid：'+data.list[i].id+'，name：' + data.list[i].title + ',id：' + data.list[i].task + ']';
+                                if(data.list[i].online_at != '0001-01-01T00:00:00Z'){
+                                    name += ' 【上线中...】';
+                                }
+                            }
+                            layer.open({
+                                title: '作品展示'
+                                , content: '共计' + data.total + '个模型。' + name
+                                , area: ['650px', '400px']
+                            });
+                        } else {
+                            layer.msg(data.errmsg);
+                        }
+                    },
+                });
+            }
+            , iframeModel: function () {
+                layer.prompt({
+                    title: '请输入模型id'
+                }, function (val, index) {
+                    window.open('iframe_demo.html?id=' + val);
+                });
+            }
+
+            //模型编辑器
+            , iframeModelEdit: function () {
+                layer.prompt({
+                    title: '请输入模型id'
+                }, function (val, index) {
+                    window.open('iframe_show.html?id=' + val);
+                });
+            }
+            
+            //移入仓位
+            ,addStorage:function () {
+                layer.prompt({
+                    title: '请输入要移入的模型uid'
+                }, function (val, index) {
+
+                    var ids=[];
+                    ids.push(val);
+
+                    $.ajax({
+                        type: 'POST',
+                        url: 'https://api.mdkrapi.com/open/e/v1/model/online',
+                        data: {id: ids},
+                        dataType: 'json',
+                        success: function (data) {
+                            console.log(data);
+                            if (data.errcode == 0) {
+                                layer.alert('移入成功',function () {
+                                    location.reload();
+                                })
+                            }else {
+                                layer.msg(data.errmsg);
+                            }
+                        }
+                    })
+                });
+            }
+            ,removeStorage:function () {
+                layer.prompt({
+                    title: '请输入要移除的模型id'
+                }, function (val, index) {
+                    var ids = [];
+                    ids.push(val);
+                    $.ajax({
+                        type: 'DELETE',
+                        url: 'https://api.mdkrapi.com/open/e/v1/model/downline?' + $.param({"id": ids}),
+                        dataType: 'json',
+                        success: function (data) {
+                            console.log()
+                            if (data.errcode == 0) {
+                                layer.alert('移出成功',function () {
+                                    location.reload();
+                                })
+                            }else{
+                                layer.msg(data.errmsg);
+                            }
+                        }
+                    });
+                });
+            }
+            ,getStorage:function () {
+                $.ajax({
+                    type: 'GET',
+                    url: 'https://api.mdkrapi.com/open/e/v1/storage',
+//                    data: {library_id: 47},
+                    dataType: 'json',
+                    success: function (data) {
+                        console.log(data);
+                        if (data.errcode == 0) {
+                            data = data.data;
+                            var content = '';
+
+                            content += ' 仓位总数：'+data.count;
+                            content += ' <br/>仓位使用：'+data.online_count;
+//                            content += ' <br/>仓位类型：'+data.type;
+                            content += ' <br/>创建时间：'+data.create_at;
+                            content += ' <br/>到期时间：'+data.expire_date;
+                            layer.open({
+                                title: '仓位信息'
+                                , content: content
+                                , area: ['400px', '230px']
+                            });
+                        } else {
+                            layer.msg(data.errmsg);
+                        }
+                    },
+                });
+            }
+        };
+    })
+
+
+    var Upload = {
+        accessid: '',
+        callback: '',
+        dir: '',
+        expire: '',
+        host: '',
+        policy: '',
+        signature: '',
+    }
+
+    function set_upload_param(up, filename, ret) {
+        var new_multipart_params = {
+            'key': Upload.dir+filename,
+            'policy': Upload.policy,
+            'OSSAccessKeyId': Upload.accessid,
+            'success_action_status': '200', //让服务端返回200,不然，默认会返回204
+            'signature': Upload.signature,
+            'callback': Upload.callback,
+            'expire': Upload.expire,
+        };
+
+        up.setOption({
+            'url': Upload.host,
+            'multipart_params': new_multipart_params
+        });
+
+        up.refresh();
+        up.start();
+    }
+
+    var uploader = new plupload.Uploader({
+        runtimes: 'html5,flash,silverlight,html4',
+        browse_button: 'selectfiles',
+//        multi_selection: false,
+        container: document.getElementById('container'),
+        // flash_swf_url: 'lib/plupload-2.1.2/js/Moxie.swf',
+        // silverlight_xap_url: 'lib/plupload-2.1.2/js/Moxie.xap',
+        url: 'http://oss.aliyuncs.com',
+
+        init: {
+            PostInit: function () {
+                document.getElementById('ossfile').innerHTML = '';
+                document.getElementById('postfiles').onclick = function () {
+                    set_upload_param(uploader, '', false);
+                    return false;
+                };
+            },
+
+            FilesAdded: function (up, files) {
+                plupload.each(files, function (file) {
+                    document.getElementById('ossfile').innerHTML += '<div id="' + file.id + '">' + file.name + ' (' + plupload.formatSize(file.size) + ')<b></b>'
+                        + '<div class="progress"><div class="progress-bar" style="width: 0%"></div></div>'
+                        + '</div>';
+                });
+            },
+
+            BeforeUpload: function (up, file) {
+                set_upload_param(up, file.name, true);
+            },
+
+            UploadProgress: function (up, file) {
+                var d = document.getElementById(file.id);
+                d.getElementsByTagName('b')[0].innerHTML = '<span>' + file.percent + "%</span>";
+                var prog = d.getElementsByTagName('div')[0];
+                var progBar = prog.getElementsByTagName('div')[0]
+                progBar.style.width = 2 * file.percent + 'px';
+                progBar.setAttribute('aria-valuenow', file.percent);
+            },
+
+            FileUploaded: function (up, file, info) {
+                if (info.status == 200) {
+                    document.getElementById(file.id).getElementsByTagName('b')[0].innerHTML = 'upload to oss success';
+                }
+                else {
+                    document.getElementById(file.id).getElementsByTagName('b')[0].innerHTML = info.response;
+                }
+            },
+            UploadComplete:function (uploader,files) {
+                active.subModel(task_uid,taskId);
+            },
+
+            Error: function (up, err) {
+                document.getElementById('console').appendChild(document.createTextNode("\nError xml:" + err.response));
+            }
+        }
+    });
+
+    uploader.init();
+
+</script>
+
+</body>
+</html>
